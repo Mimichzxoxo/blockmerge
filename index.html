@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Merge Block Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Mengimpor font Nunito untuk UI dasar dan Titan One untuk Judul 3D Kartun */
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Titan+One&display=swap');
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #e0f2fe; /* Light blue background */
+            touch-action: none; /* Prevent zoom and scroll (Anti-double tap zoom) */
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* --- 3D BUBBLE TITLE STYLES (REFERENSI BINGO! GAME) --- */
+        .title-container {
+            line-height: 0.85;
+            filter: drop-shadow(0 10px 8px rgba(0,0,0,0.25));
+        }
+
+        .title-top {
+            font-family: 'Titan One', cursive;
+            font-size: clamp(3rem, 10vw, 4.5rem);
+            color: #ffffff;
+            /* Stroke ungu gelap */
+            -webkit-text-stroke: 2px #3b0764;
+            /* Layer bayangan: Bevel biru muda -> Extrusion 3D Ungu */
+            text-shadow:
+                0px 3px 0px #93c5fd,
+                0px 4px 0px #3b0764,
+                0px 5px 0px #3b0764,
+                0px 6px 0px #3b0764,
+                0px 7px 0px #3b0764,
+                0px 8px 0px #3b0764,
+                0px 9px 0px #2e1065,
+                0px 10px 0px #2e1065,
+                0px 15px 10px rgba(0,0,0,0.4);
+            transform: rotate(-4deg);
+            z-index: 2;
+            position: relative;
+        }
+
+        .title-bottom {
+            font-family: 'Titan One', cursive;
+            font-size: clamp(2.2rem, 8vw, 3.5rem);
+            color: #fde047; /* Kuning terang */
+            /* Stroke oranye gelap */
+            -webkit-text-stroke: 2px #c2410c;
+            /* Layer bayangan: Bevel oranye -> Extrusion 3D Ungu (konsisten dengan atas) */
+            text-shadow:
+                0px 3px 0px #f59e0b,
+                0px 4px 0px #3b0764,
+                0px 5px 0px #3b0764,
+                0px 6px 0px #3b0764,
+                0px 7px 0px #3b0764,
+                0px 8px 0px #3b0764,
+                0px 9px 0px #2e1065,
+                0px 10px 0px #2e1065,
+                0px 15px 10px rgba(0,0,0,0.4);
+            transform: rotate(3deg);
+            margin-top: -15px; /* Tumpang tindih dengan teks atas */
+            z-index: 3;
+            position: relative;
+        }
+        /* ---------------------------------------------------- */
+
+        /* Block Colors based on value */
+        .val-2 { background-color: #3b82f6; color: white; } /* Blue */
+        .val-4 { background-color: #8b5cf6; color: white; } /* Purple */
+        .val-8 { background-color: #ef4444; color: white; } /* Red */
+        .val-16 { background-color: #10b981; color: white; } /* Green */
+        .val-32 { background-color: #f59e0b; color: white; } /* Orange */
+        .val-64 { background-color: #6366f1; color: white; } /* Indigo */
+        .val-128 { background-color: #ec4899; color: white; } /* Pink */
+        .val-256 { background-color: #14b8a6; color: white; } /* Teal */
+        .val-512 { background-color: #eab308; color: white; } /* Yellow */
+        .val-1024 { background-color: #f43f5e; color: white; } /* Rose */
+        .val-2048 { background-color: #000000; color: white; box-shadow: 0 0 15px gold; } /* Black/Gold */
+        .val-4096 { background-color: #ffffff; color: #000000; box-shadow: 0 0 20px cyan; } /* White/Cyan */
+        
+        .val-default { background-color: #94a3b8; color: white; }
+
+        .block {
+            width: 100%;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(1.2rem, 4vmin, 1.5rem);
+            font-weight: 800;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), inset 0 -3px 0 rgba(0,0,0,0.2);
+            position: relative;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            transition: transform 0.15s ease-out, background-color 0.3s;
+        }
+
+        /* Responsive Block Heights */
+        .lane .block {
+            height: calc((100% - 40px) / 6); /* Fit exactly 6 blocks with 8px gap */
+            flex-shrink: 0;
+        }
+
+        .preview-container .block {
+            height: 50px;
+        }
+
+        .block.val-4096 { text-shadow: none; }
+
+        /* Small cute face for the blocks */
+        .block::after {
+            content: '';
+            position: absolute;
+            bottom: 8px;
+            width: 20px;
+            height: 6px;
+            background: transparent;
+            border-bottom: 2px solid rgba(255,255,255,0.7);
+            border-radius: 50%;
+        }
+        .block.val-4096::after { border-bottom-color: rgba(0,0,0,0.7); }
+
+        .block::before {
+            content: '•   •';
+            position: absolute;
+            font-size: 12px;
+            top: 25px;
+            color: rgba(255,255,255,0.9);
+            letter-spacing: 4px;
+            text-shadow: none;
+        }
+        .block.val-4096::before { color: rgba(0,0,0,0.9); }
+
+        /* Animations */
+        @keyframes drop-in {
+            0% { transform: translateY(-100px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes pop-merge {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); filter: brightness(1.2); z-index: 10; }
+            100% { transform: scale(1); }
+        }
+        
+        @keyframes level-up-bounce {
+            0%, 100% { transform: scale(1) translateY(0); }
+            50% { transform: scale(1.1) translateY(-10px); }
+        }
+
+        .anim-drop { animation: drop-in 0.2s ease-out forwards; }
+        .anim-merge { animation: pop-merge 0.2s ease-out forwards; }
+        .anim-levelup { animation: level-up-bounce 0.8s ease-in-out infinite; }
+
+        .lane {
+            background-color: rgba(255, 255, 255, 0.4);
+            border-radius: 16px;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column-reverse; /* Stack bottom-up */
+            padding: 8px;
+            gap: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            position: relative;
+        }
+
+        .lane:hover { background-color: rgba(255, 255, 255, 0.6); }
+
+        .lane-indicator {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.2s;
+            color: #64748b;
+        }
+        .lane:hover .lane-indicator { opacity: 1; }
+
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="flex items-center justify-center h-[100dvh] w-screen m-0 overflow-hidden bg-[#e0f2fe]">
+
+    <!-- Game Container -->
+    <div class="relative w-full max-w-md p-3 flex flex-col items-center h-full justify-between pb-6 pt-3">
+        
+        <!-- Header Section (Title & Score) -->
+        <div class="text-center w-full shrink-0 flex flex-col items-center">
+            
+            <!-- NEW 3D Title -->
+            <div class="flex flex-col items-center justify-center title-container select-none pointer-events-none mb-3">
+                <div class="title-top">MERGE!</div>
+                <div class="title-bottom">BLOCK</div>
+            </div>
+
+            <!-- Score & Level UI -->
+            <div class="flex justify-between items-end w-full max-w-[90%] mb-2 px-2">
+                <div class="flex flex-col items-start">
+                    <span class="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Score</span>
+                    <span class="text-3xl font-black text-slate-800 leading-none tracking-tight" id="score-display">0</span>
+                </div>
+                <div class="flex flex-col items-end">
+                    <span class="text-base text-blue-600 font-black leading-none">Level <span id="level-display">1</span></span>
+                    <span class="text-[10px] text-slate-500 font-bold uppercase mt-1">Target: <span id="target-display">500</span></span>
+                </div>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="w-full max-w-[90%] bg-slate-300 rounded-full h-2 shadow-inner mb-3">
+                <div id="progress-bar" class="bg-gradient-to-r from-blue-400 to-blue-600 h-2 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- Preview Area -->
+        <div class="preview-container flex items-center justify-center gap-5 mb-2 bg-white/50 p-2 rounded-2xl shadow-sm w-full max-w-[85%] shrink-0">
+            <div class="flex flex-col items-center gap-1">
+                <span class="text-[10px] md:text-xs font-bold text-slate-500 uppercase">Next</span>
+                <div id="next-preview" class="w-12 md:w-14 opacity-80 transform scale-90"></div>
+            </div>
+            <div class="w-px h-10 bg-slate-300"></div>
+            <div class="flex flex-col items-center gap-1">
+                <span class="text-[10px] md:text-xs font-bold text-blue-600 uppercase">Current</span>
+                <div id="current-preview" class="w-14 md:w-16 ring-4 ring-blue-400 rounded-xl shadow-lg transform scale-110 bg-white"></div>
+            </div>
+        </div>
+
+        <!-- Game Board (4 Lanes) -->
+        <div class="grid grid-cols-4 gap-1 md:gap-2 w-full flex-grow max-h-[55vh] md:max-h-[450px] relative mt-1">
+            <div class="lane" id="lane-0">
+                <div class="lane-indicator">▼</div>
+            </div>
+            <div class="lane" id="lane-1">
+                <div class="lane-indicator">▼</div>
+            </div>
+            <div class="lane" id="lane-2">
+                <div class="lane-indicator">▼</div>
+            </div>
+            <div class="lane" id="lane-3">
+                <div class="lane-indicator">▼</div>
+            </div>
+
+            <!-- Level Up Popup Overlay (Non-blocking) -->
+            <div id="level-up-popup" class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-300 z-40 hidden">
+                <span class="text-5xl font-black text-yellow-400 drop-shadow-[0_4px_4px_rgba(0,0,0,0.6)] anim-levelup" style="-webkit-text-stroke: 1px #b45309;">LEVEL UP!</span>
+            </div>
+        </div>
+
+        <!-- Game Over Overlay -->
+        <div id="game-over" class="absolute inset-0 bg-slate-900/90 backdrop-blur-sm rounded-xl hidden flex-col items-center justify-center z-50">
+            <h2 class="text-5xl font-black text-white mb-2 shadow-sm text-red-400">GAME OVER</h2>
+            <p class="text-xl text-slate-300 font-bold mb-2">Final Score: <span id="final-score" class="text-white">0</span></p>
+            <p class="text-lg text-blue-300 font-bold mb-8">Reached Level <span id="final-level">1</span></p>
+            <button onclick="initGame()" class="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white font-bold py-3 px-10 rounded-full shadow-lg transform transition active:scale-95 text-xl">
+                Restart Game
+            </button>
+        </div>
+        
+    </div>
+
+    <!-- Group Watermark -->
+    <div class="fixed bottom-1 text-center w-full text-[9px] md:text-[10px] text-slate-500 opacity-70 pointer-events-none font-bold z-50">
+        24.N2.0004 William Wijaya H | 25.N2.0001 Annabel Michelle S | 25.N2.0007 Bernadus Istiono S
+    </div>
+
+    <script>
+        // --- Game Constants & Configuration ---
+        const COLUMNS = 4;
+        const MAX_ROWS = 6;
+        
+        // Target score needed for each level. Array index 0 is dummy, Level 1 is index 1.
+        const LEVEL_TARGETS = [0, 500, 2000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
+        
+        // --- Game State ---
+        let board = [[], [], [], []]; 
+        let score = 0;
+        let currentLevel = 1;
+        let targetScore = LEVEL_TARGETS[1];
+        let currentBlockValue = 2;
+        let nextBlockValue = 4;
+        let isProcessing = false; 
+
+        // --- DOM Elements ---
+        const scoreDisplay = document.getElementById('score-display');
+        const levelDisplay = document.getElementById('level-display');
+        const targetDisplay = document.getElementById('target-display');
+        const progressBar = document.getElementById('progress-bar');
+        const currentPreview = document.getElementById('current-preview');
+        const nextPreview = document.getElementById('next-preview');
+        const gameOverScreen = document.getElementById('game-over');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const finalLevelDisplay = document.getElementById('final-level');
+        const levelUpPopup = document.getElementById('level-up-popup');
+        const lanes = [
+            document.getElementById('lane-0'),
+            document.getElementById('lane-1'),
+            document.getElementById('lane-2'),
+            document.getElementById('lane-3')
+        ];
+
+        // Zero-delay touch & click logic for mobile responsiveness (Anti-Double Tap zoom)
+        lanes.forEach((lane, index) => {
+            const handleTap = (e) => {
+                e.preventDefault(); // Stop double-firing from tap+click zoom behavior
+                handleLaneClick(index);
+            };
+            lane.addEventListener('touchstart', handleTap, { passive: false });
+            lane.addEventListener('mousedown', handleTap);
+        });
+
+        // Utility: Async delay for animations
+        const delay = ms => new Promise(res => setTimeout(res, ms));
+
+        // --- Core Functions ---
+
+        function initGame() {
+            board = [[], [], [], []];
+            score = 0;
+            currentLevel = 1;
+            targetScore = LEVEL_TARGETS[1];
+            isProcessing = false;
+            
+            gameOverScreen.classList.add('hidden');
+            gameOverScreen.classList.remove('flex');
+            
+            updateScoreUI();
+            
+            nextBlockValue = getRandomBlockValue();
+            currentBlockValue = getRandomBlockValue();
+            
+            renderPreviews();
+            renderBoard();
+        }
+
+        function getTargetScore(level) {
+            if (level < LEVEL_TARGETS.length) {
+                return LEVEL_TARGETS[level];
+            }
+            const lastTarget = LEVEL_TARGETS[LEVEL_TARGETS.length - 1];
+            const diff = level - (LEVEL_TARGETS.length - 1);
+            return lastTarget * Math.pow(2, diff);
+        }
+
+        // Difficulty Scaling: Higher levels spawn higher blocks
+        function getRandomBlockValue() {
+            let minExponent = Math.max(1, Math.floor((currentLevel + 1) / 2));
+            let rand = Math.random();
+            let exponent;
+            
+            if (rand < 0.50) exponent = minExponent;
+            else if (rand < 0.85) exponent = minExponent + 1;
+            else exponent = minExponent + 2;
+
+            if (exponent > 8) exponent = 8; 
+
+            return Math.pow(2, exponent);
+        }
+
+        function getBlockColorClass(val) {
+            if (val <= 4096) return `val-${val}`;
+            return 'val-default';
+        }
+
+        function createBlockHTML(value, extraClasses = '') {
+            const colorClass = getBlockColorClass(value);
+            return `<div class="block ${colorClass} ${extraClasses}">${value}</div>`;
+        }
+
+        function updateScoreUI() {
+            scoreDisplay.textContent = score;
+            levelDisplay.textContent = currentLevel;
+            targetDisplay.textContent = targetScore;
+            
+            // Calculate progress percentage
+            let prevTarget = currentLevel === 1 ? 0 : getTargetScore(currentLevel - 1);
+            let scoreInLevel = score - prevTarget;
+            let targetDiff = targetScore - prevTarget;
+            
+            let percentage = (scoreInLevel / targetDiff) * 100;
+            if (percentage > 100) percentage = 100;
+            if (percentage < 0) percentage = 0;
+            
+            progressBar.style.width = `${percentage}%`;
+
+            if (score >= targetScore) {
+                triggerLevelUp();
+            }
+        }
+
+        function triggerLevelUp() {
+            currentLevel++;
+            targetScore = getTargetScore(currentLevel);
+            updateScoreUI();
+
+            levelUpPopup.classList.remove('hidden');
+            void levelUpPopup.offsetWidth;
+            levelUpPopup.classList.remove('opacity-0');
+            levelUpPopup.classList.add('opacity-100');
+
+            setTimeout(() => {
+                levelUpPopup.classList.remove('opacity-100');
+                levelUpPopup.classList.add('opacity-0');
+                setTimeout(() => {
+                    levelUpPopup.classList.add('hidden');
+                }, 300);
+            }, 1500);
+        }
+
+        function renderPreviews() {
+            currentPreview.innerHTML = createBlockHTML(currentBlockValue);
+            nextPreview.innerHTML = createBlockHTML(nextBlockValue);
+        }
+
+        function renderBoard(activeAnimInfo = null) {
+            for (let i = 0; i < COLUMNS; i++) {
+                let html = '<div class="lane-indicator">▼</div>';
+                board[i].forEach((val, rowIndex) => {
+                    let extraClass = '';
+                    if (activeAnimInfo && activeAnimInfo.col === i && activeAnimInfo.row === rowIndex) {
+                        extraClass = activeAnimInfo.type;
+                    }
+                    html += createBlockHTML(val, extraClass);
+                });
+                lanes[i].innerHTML = html;
+            }
+        }
+
+        // --- Core Physics & Merging Engine ---
+
+        async function handleLaneClick(colIndex) {
+            if (isProcessing) return; 
+            if (board[colIndex].length >= MAX_ROWS) {
+                checkGameOverCondition();
+                return;
+            }
+
+            isProcessing = true;
+            
+            // 1. Drop the block
+            board[colIndex].push(currentBlockValue);
+            const dropRow = board[colIndex].length - 1;
+            
+            renderBoard({ col: colIndex, row: dropRow, type: 'anim-drop' });
+            await delay(150);
+
+            // 2. Cascade Queue setup
+            let checkQueue = [{ c: colIndex, r: dropRow }];
+            await processQueue(checkQueue);
+
+            // 3. Finish Turn
+            finishTurn();
+        }
+
+        async function processQueue(queue) {
+            while (queue.length > 0) {
+                let { c, r } = queue.shift();
+
+                // Validation
+                if (c < 0 || c >= COLUMNS || r < 0 || r >= board[c].length) continue;
+
+                let val = board[c][r];
+                let hasMerged = false;
+
+                // Priority 1: Vertical Merge
+                if (r > 0 && board[c][r - 1] === val) {
+                    board[c][r - 1] = val * 2;
+                    board[c].splice(r, 1);
+                    score += (val * 2);
+                    queue.push({ c: c, r: r - 1 }); 
+                    hasMerged = true;
+                }
+                // Priority 2: Horizontal Merge Left
+                else if (c > 0 && r < board[c - 1].length && board[c - 1][r] === val) {
+                    board[c][r] = val * 2;
+                    board[c - 1].splice(r, 1); 
+                    score += (val * 2);
+                    
+                    // Gravity Simulation
+                    for (let i = r; i < board[c - 1].length; i++) {
+                        queue.push({ c: c - 1, r: i });
+                    }
+                    queue.push({ c: c, r: r });
+                    hasMerged = true;
+                }
+                // Priority 3: Horizontal Merge Right
+                else if (c < COLUMNS - 1 && r < board[c + 1].length && board[c + 1][r] === val) {
+                    board[c][r] = val * 2;
+                    board[c + 1].splice(r, 1);
+                    score += (val * 2);
+                    
+                    // Gravity Simulation
+                    for (let i = r; i < board[c + 1].length; i++) {
+                        queue.push({ c: c + 1, r: i });
+                    }
+                    queue.push({ c: c, r: r });
+                    hasMerged = true;
+                }
+
+                if (hasMerged) {
+                    updateScoreUI();
+                    renderBoard({ col: c, row: hasMerged && r > 0 && board[c][r-1]==val*2 ? r-1 : r, type: 'anim-merge' });
+                    await delay(250); // Pause for visible cascade effect
+                }
+            }
+        }
+
+        function finishTurn() {
+            if (checkGameOverCondition()) return;
+
+            currentBlockValue = nextBlockValue;
+            nextBlockValue = getRandomBlockValue();
+            renderPreviews();
+            renderBoard(); 
+            
+            isProcessing = false; 
+        }
+
+        function checkGameOverCondition() {
+            let isGameOver = false;
+            for (let i = 0; i < COLUMNS; i++) {
+                if (board[i].length > MAX_ROWS) {
+                    isGameOver = true;
+                    break;
+                }
+            }
+
+            let fullCols = 0;
+            for (let i = 0; i < COLUMNS; i++) {
+                if(board[i].length >= MAX_ROWS) fullCols++;
+            }
+            if(fullCols === COLUMNS) isGameOver = true;
+
+            if (isGameOver) {
+                isProcessing = true;
+                finalScoreDisplay.textContent = score;
+                finalLevelDisplay.textContent = currentLevel;
+                gameOverScreen.classList.remove('hidden');
+                gameOverScreen.classList.add('flex');
+                return true;
+            }
+            return false;
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (isProcessing) return;
+            switch(e.key) {
+                case '1': case 'ArrowLeft': handleLaneClick(0); break;
+                case '2': handleLaneClick(1); break;
+                case '3': handleLaneClick(2); break;
+                case '4': case 'ArrowRight': handleLaneClick(3); break;
+            }
+        });
+
+        // Start
+        window.onload = initGame;
+    </script>
+</body>
+</html>
